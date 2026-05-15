@@ -1,0 +1,8 @@
+/target
+/crawly
+/package-lock.json
+/web/.next/
+/web/node_modules/
+/web/out/
+/web/pkg/
+/web/*.wasm
