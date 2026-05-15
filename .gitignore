@@ -1,6 +1,8 @@
 /target
 /crawly
 /package-lock.json
+/rust/Cargo.lock
+/rust/target/
 /web/.next/
 /web/node_modules/
 /web/out/

@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "python3 -m http.server 3000 --directory out"
+    "start": "bunx serve@latest out"
   },
   "dependencies": {
     "framer-motion": "11.13.1",
     "next": "14.2.33",
+    "serve": "^14.2.4",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   }
