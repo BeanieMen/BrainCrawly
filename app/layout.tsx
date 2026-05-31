@@ -18,7 +18,7 @@ interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
+export default function RootLayout({ children }: RootLayoutProps): React.ReactElement {
   return (
     <html lang="en" className={montserrat.variable}>
       <body>{children}</body>

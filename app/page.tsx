@@ -253,7 +253,7 @@ interface CellValueProps {
   value: number;
 }
 
-function CellValue({ value }: CellValueProps): JSX.Element {
+function CellValue({ value }: CellValueProps): React.ReactElement {
   return (
     <div className="flex min-h-[62px] w-full items-center justify-center" aria-label={`Cell value ${value}`}>
       <AnimatePresence mode="wait" initial={false}>
@@ -277,7 +277,7 @@ interface CodeTokenProps {
   active: boolean;
 }
 
-function CodeToken({ token, active }: CodeTokenProps): JSX.Element {
+function CodeToken({ token, active }: CodeTokenProps): React.ReactElement {
   return (
     <motion.span
       layout
@@ -298,7 +298,7 @@ interface TapeCellProps {
   cell: TapeCellState;
 }
 
-function TapeCell({ cell }: TapeCellProps): JSX.Element {
+function TapeCell({ cell }: TapeCellProps): React.ReactElement {
   return (
     <motion.div
       layout
@@ -327,7 +327,7 @@ interface TutorialProps {
   onClose: () => void;
 }
 
-function Tutorial({ onClose }: TutorialProps): JSX.Element {
+function Tutorial({ onClose }: TutorialProps): React.ReactElement {
   const [slide, setSlide] = useState(0);
   const slides = [
     ["Meet BrainCrawly", "This is a step-by-step Brainfuck visualizer. You can move slowly and watch the tape react."],
@@ -412,7 +412,7 @@ function Tutorial({ onClose }: TutorialProps): JSX.Element {
   );
 }
 
-export default function Page(): JSX.Element {
+export default function Page(): React.ReactElement {
   const [program, setProgram] = useState(DEFAULT_PROGRAM);
   const [input, setInput] = useState(DEFAULT_INPUT);
   const [running, setRunning] = useState(false);
