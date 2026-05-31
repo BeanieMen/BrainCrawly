@@ -14,6 +14,7 @@ install:
 
 wasm:
 	$(CARGO) build --manifest-path $(RUST_DIR)/Cargo.toml --target wasm32-unknown-unknown --release
+	mkdir -p $(WEB_DIR)/pkg
 	cp $(WASM_OUTPUT) $(WEB_DIR)/pkg/crawly_wasm_bg.wasm
 
 web-build:
