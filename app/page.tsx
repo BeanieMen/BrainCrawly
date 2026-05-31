@@ -689,7 +689,7 @@ export default function Page(): JSX.Element {
                     {machine ? `instruction ${highlightedInstruction ?? 0}` : "waiting for valid code"}
                   </span>
                 </div>
-                <div className="flex max-h-[190px] min-h-[190px] flex-nowrap gap-2 overflow-x-auto overflow-y-hidden rounded-lg border border-[#ead9c5] bg-[#fffdfa] p-3">
+                <div className="flex min-h-[88px] flex-wrap gap-2 rounded-lg border border-[#ead9c5] bg-[#fffdfa] p-3">
                   {codeTokens.length > 0 ? (
                     codeTokens.map((token, index) => (
                       <CodeToken
