@@ -1,31 +1,16 @@
 "use client";
 
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import React, { ChangeEvent, MouseEvent, useEffect, useRef, useState } from "react";
-
-import initWasm, { interpret as interpretWithWasm } from "../interpreter/crawly_wasm.js";
+import React, { ChangeEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 const BF_TOKENS = "><+-.,[]";
 const TAPE_SIZE = 30000;
 const HISTORY_LIMIT = 8;
-const DEFAULT_SPEED = 180;
+const DEFAULT_SPEED = 60;
+const HELLO_WORLD_PROGRAM =
+  ">++++++++[<+++++++++>-]<.>++++[<+++++++>-]<+.+++++++..+++.>>++++++[<+++++++>-]<+\n+.------------.>++++++[<+++++++++>-]<+.<.+++.------.--------.>>>++++[<++++++++>-]\n<+.";
 const DEFAULT_PROGRAM = "+++[>+++++<-]>.>++++++++[<++++++>-]<.";
 const DEFAULT_INPUT = "";
-
-let wasmInitPromise: Promise<void> | null = null;
-
-function ensureWasm(): Promise<void> {
-  if (!wasmInitPromise) {
-    wasmInitPromise = initWasm().then(() => undefined);
-  }
-
-  return wasmInitPromise;
-}
-
-async function runWasm(program: string, input: string): Promise<string> {
-  await ensureWasm();
-  return interpretWithWasm(program, input);
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -89,14 +74,12 @@ interface StepResult {
 }
 
 type StatusTone = "neutral" | "positive" | "error";
-type WasmTone = "idle" | "ready" | "error";
 
 const SAMPLE_PROGRAMS: SampleProgram[] = [
   {
     id: "hello-world",
     label: "Hello, World!",
-    program:
-      "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>.>++.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.",
+    program: HELLO_WORLD_PROGRAM,
     input: "",
   },
   {
@@ -112,559 +95,6 @@ const SAMPLE_PROGRAMS: SampleProgram[] = [
     input: "",
   },
 ];
-
-const PAGE_STYLES = `
-  :root {
-    color-scheme: light;
-    --cream: #fff8ed;
-    --paper: #fffdfa;
-    --ink: #26313d;
-    --muted: #6b7280;
-    --line: #ead9c5;
-    --rose: #ff8fa3;
-    --rose-dark: #c94f6a;
-    --mint: #4fc7a1;
-    --mint-soft: #dff8ee;
-    --blue: #5f8fd7;
-    --honey: #f5bd4f;
-    --shadow: 0 18px 48px rgba(82, 57, 36, 0.14);
-  }
-
-  * { box-sizing: border-box; }
-
-  html, body { min-height: 100%; }
-
-  body {
-    margin: 0;
-    color: var(--ink);
-    background:
-      linear-gradient(90deg, rgba(38, 49, 61, 0.04) 1px, transparent 1px),
-      linear-gradient(rgba(38, 49, 61, 0.04) 1px, transparent 1px),
-      linear-gradient(135deg, #fff7eb 0%, #f4fff8 42%, #f7f2ff 100%);
-    background-size: 28px 28px, 28px 28px, auto;
-    font-family: var(--font-montserrat), "Segoe UI", sans-serif;
-    overflow-x: hidden;
-  }
-
-  button, textarea, input { font: inherit; }
-  button { border: 0; cursor: pointer; }
-  button:disabled { cursor: not-allowed; opacity: 0.62; }
-  textarea { resize: vertical; }
-
-  .page {
-    min-height: 100vh;
-    padding: 28px 18px 36px;
-  }
-
-  .hero {
-    width: min(1180px, 100%);
-    margin: 0 auto 18px;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 18px;
-    align-items: center;
-  }
-
-  .cat-mark {
-    position: relative;
-    width: 86px;
-    aspect-ratio: 1;
-    border: 3px solid #2e3640;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #ffd6dd 0 48%, #dff8ee 48% 100%);
-    box-shadow: var(--shadow);
-    transform: rotate(-2deg);
-  }
-
-  .cat-mark::before,
-  .cat-mark::after {
-    content: "";
-    position: absolute;
-    top: -17px;
-    width: 31px;
-    height: 31px;
-    border: 3px solid #2e3640;
-    border-bottom: 0;
-    border-right: 0;
-    background: #ffd6dd;
-  }
-
-  .cat-mark::before { left: 9px; transform: rotate(45deg); }
-  .cat-mark::after { right: 9px; transform: rotate(45deg); background: #dff8ee; }
-  .cat-mark span, .cat-mark span::before, .cat-mark span::after { position: absolute; content: ""; }
-  .cat-mark span { inset: 0; }
-
-  .cat-mark span::before {
-    left: 22px;
-    top: 32px;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: #26313d;
-    box-shadow: 32px 0 0 #26313d, 16px 18px 0 -2px #26313d;
-  }
-
-  .cat-mark span::after {
-    left: 20px;
-    right: 20px;
-    top: 56px;
-    height: 10px;
-    border-bottom: 3px solid #26313d;
-    border-radius: 0 0 999px 999px;
-  }
-
-  .eyebrow, .panel-kicker, .field span, .stat-card span, .helper-text { letter-spacing: 0; }
-
-  .eyebrow {
-    margin: 0 0 5px;
-    color: var(--rose-dark);
-    font-size: 0.78rem;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .hero h1 {
-    margin: 0;
-    font-size: clamp(2.3rem, 5vw, 4.7rem);
-    line-height: 0.96;
-  }
-
-  .hero p:last-child {
-    max-width: 760px;
-    margin: 8px 0 0;
-    color: #53606c;
-    line-height: 1.65;
-  }
-
-  .workspace {
-    width: min(1180px, 100%);
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
-    gap: 14px;
-    align-items: start;
-  }
-
-  .panel, .section, .stat-card, .history-item, .output-box, .wasm-result,
-  .textarea, .code-strip, .tape-shell, .cell-face, .empty-state {
-    border-radius: 8px;
-  }
-
-  .panel {
-    border: 2px solid #2e3640;
-    background: rgba(255, 253, 250, 0.92);
-    box-shadow: var(--shadow);
-    overflow: hidden;
-  }
-
-  .cat-card { position: relative; }
-
-  .cat-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(90deg, rgba(38, 49, 61, 0.035) 1px, transparent 1px),
-      linear-gradient(rgba(38, 49, 61, 0.035) 1px, transparent 1px);
-    background-size: 18px 18px;
-    opacity: 0.55;
-  }
-
-  .panel > * { position: relative; }
-  .panel-header { padding: 18px 18px 0; }
-
-  .panel-kicker {
-    margin: 0 0 4px;
-    color: var(--mint);
-    font-size: 0.75rem;
-    font-weight: 900;
-    text-transform: uppercase;
-  }
-
-  .panel-header h2, .section h3 { margin: 0; }
-  .panel-header h2 { font-size: 1.35rem; }
-  .panel-body { padding: 16px 18px 18px; }
-
-  .stack, .visual-body, .playback-section, .output-stack {
-    display: grid;
-    gap: 12px;
-  }
-
-  .section {
-    border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.72);
-    padding: 14px;
-  }
-
-  .section-title-row, .visual-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .section-title-row { margin-bottom: 10px; }
-
-  .helper-text {
-    color: var(--muted);
-    font-size: 0.78rem;
-    line-height: 1.4;
-  }
-
-  .sample-row {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-  }
-
-  .preset-pill, .primary-button, .secondary-button, .ghost-button {
-    min-height: 40px;
-    border-radius: 8px;
-    font-weight: 900;
-    transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
-  }
-
-  .preset-pill {
-    min-height: 32px;
-    padding: 7px 10px;
-    border: 1px solid #f0c2cd;
-    color: #873a4d;
-    background: #fff0f4;
-    font-size: 0.78rem;
-  }
-
-  .preset-pill:hover, .primary-button:hover, .secondary-button:hover, .ghost-button:hover {
-    transform: translateY(-1px);
-  }
-
-  .field { display: grid; gap: 7px; }
-
-  .field span, .stat-card span {
-    color: var(--muted);
-    font-size: 0.74rem;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .textarea {
-    width: 100%;
-    min-height: 134px;
-    padding: 12px;
-    border: 1px solid #ddc7ae;
-    color: var(--ink);
-    background: #fffdfa;
-    outline: none;
-    line-height: 1.55;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.92rem;
-  }
-
-  .textarea:focus {
-    border-color: var(--mint);
-    box-shadow: 0 0 0 4px rgba(79, 199, 161, 0.2);
-  }
-
-  .code-input { min-height: 190px; }
-
-  .control-row {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .primary-button {
-    color: #1b302b;
-    background: #8be8c5;
-    box-shadow: 0 8px 0 #2e3640;
-  }
-
-  .secondary-button {
-    color: #26313d;
-    border: 2px solid #2e3640;
-    background: #eaf2ff;
-  }
-
-  .ghost-button {
-    color: #70470f;
-    border: 2px solid #f0c367;
-    background: #fff2c7;
-  }
-
-  .wasm-button { min-width: 118px; }
-  input[type="range"] { width: 100%; accent-color: var(--rose); }
-
-  .status {
-    min-height: 1.4rem;
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.9rem;
-    line-height: 1.45;
-  }
-
-  .status.positive, .wasm-result.ready span { color: #227958; }
-  .status.error, .wasm-result.error span { color: #b23b55; }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .stat-card {
-    border: 1px solid #d9c7b5;
-    background: #fdf7ef;
-    padding: 11px 12px;
-  }
-
-  .stat-card strong {
-    display: block;
-    margin-top: 5px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .visual-panel { min-height: 100%; }
-
-  .code-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-    min-height: 88px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    background: #fffdfa;
-  }
-
-  .code-token {
-    display: inline-grid;
-    place-items: center;
-    min-width: 34px;
-    min-height: 34px;
-    padding: 0 10px;
-    border: 1px solid #ddc7ae;
-    border-radius: 8px;
-    background: #fff4df;
-    font-weight: 900;
-    user-select: none;
-  }
-
-  .code-token.active {
-    color: #26313d;
-    border-color: #2e3640;
-    background: #ffd6dd;
-    box-shadow: 0 5px 0 #2e3640;
-  }
-
-  .tape-section { display: grid; gap: 10px; }
-
-  .tape-shell {
-    min-height: 190px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    background: #f4fff8;
-    overflow: hidden;
-  }
-
-  .tape-row {
-    --visible-cells: 10;
-    display: grid;
-    grid-template-columns: repeat(var(--visible-cells), minmax(60px, 1fr));
-    gap: 8px;
-  }
-
-  .cell {
-    display: grid;
-    gap: 7px;
-    min-height: 136px;
-    text-align: center;
-  }
-
-  .cell-face {
-    position: relative;
-    display: grid;
-    place-items: center;
-    min-height: 112px;
-    padding: 12px 8px;
-    border: 2px solid #ddc7ae;
-    background: #fffdfa;
-  }
-
-  .cell.pointer .cell-face {
-    border-color: #2e3640;
-    background: #dff8ee;
-    box-shadow: 0 8px 0 #2e3640;
-  }
-
-  .cell.pointer .cell-face::before {
-    content: "^";
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    color: var(--rose-dark);
-    font-weight: 900;
-  }
-
-  .cell-value {
-    display: grid;
-    place-items: center;
-    min-height: 62px;
-    width: 100%;
-  }
-
-  .cell-value-digit {
-    width: 100%;
-    color: var(--ink);
-    font-size: 1.45rem;
-    font-weight: 900;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .cell-number {
-    color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 800;
-  }
-
-  .bottom-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .history-list {
-    display: grid;
-    gap: 7px;
-    max-height: 242px;
-    overflow: auto;
-    padding-right: 4px;
-  }
-
-  .history-item {
-    display: grid;
-    gap: 4px;
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    background: #fffdfa;
-  }
-
-  .history-item strong { font-size: 0.9rem; }
-
-  .history-item span {
-    color: var(--muted);
-    font-size: 0.82rem;
-    line-height: 1.45;
-  }
-
-  .output-box, .wasm-result pre {
-    margin: 0;
-    min-height: 90px;
-    padding: 12px;
-    border: 1px solid #ddc7ae;
-    background: #26313d;
-    color: #fffdfa;
-    white-space: pre-wrap;
-    word-break: break-word;
-    line-height: 1.55;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.88rem;
-  }
-
-  .wasm-result {
-    display: grid;
-    gap: 8px;
-    padding: 10px;
-    border: 1px solid var(--line);
-    background: #fff7fb;
-  }
-
-  .wasm-result span {
-    color: var(--muted);
-    font-size: 0.84rem;
-    font-weight: 800;
-  }
-
-  .empty-inline, .empty-state {
-    color: var(--muted);
-    font-size: 0.9rem;
-  }
-
-  .empty-state {
-    display: grid;
-    place-items: center;
-    min-height: 128px;
-    padding: 16px;
-    border: 1px dashed #d6bfa7;
-    background: rgba(255, 253, 250, 0.72);
-    text-align: center;
-  }
-
-  .compact-empty { min-height: 96px; }
-
-  .tutorial-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    display: grid;
-    place-items: center;
-    padding: 20px;
-    background: rgba(38, 49, 61, 0.34);
-  }
-
-  .tutorial-modal {
-    width: min(430px, 100%);
-    border: 2px solid #2e3640;
-    border-radius: 8px;
-    background: #fffdfa;
-    padding: 22px;
-    box-shadow: var(--shadow);
-  }
-
-  .tutorial-modal h2 { margin: 0 0 8px; }
-  .tutorial-modal p { color: var(--muted); line-height: 1.6; }
-
-  .icon-close {
-    float: right;
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    color: #26313d;
-    background: #fff2c7;
-    font-weight: 900;
-  }
-
-  .tutorial-footer, .dots {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .tutorial-footer { justify-content: space-between; }
-
-  .dot {
-    width: 28px;
-    height: 8px;
-    border-radius: 8px;
-    background: #ead9c5;
-  }
-
-  .dot.active { background: var(--rose); }
-
-  @media (max-width: 1060px) {
-    .workspace { grid-template-columns: 1fr; }
-    .bottom-grid { grid-template-columns: 1fr; }
-  }
-
-  @media (max-width: 720px) {
-    .page { padding: 18px 12px 28px; }
-    .hero { grid-template-columns: 1fr; }
-    .cat-mark { width: 74px; }
-    .section-title-row, .visual-header { flex-direction: column; }
-    .sample-row { justify-content: flex-start; }
-    .control-row, .stats-grid { grid-template-columns: 1fr; }
-    .tape-row { grid-template-columns: repeat(var(--visible-cells), minmax(54px, 1fr)); }
-  }
-`;
 
 class BrainfuckMachine {
   code: string[];
@@ -840,15 +270,15 @@ interface CellValueProps {
 
 function CellValue({ value }: CellValueProps): JSX.Element {
   return (
-    <div className="cell-value" aria-label={`Cell value ${value}`}>
+    <div className="flex min-h-[62px] w-full items-center justify-center" aria-label={`Cell value ${value}`}>
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
           key={value}
-          className="cell-value-digit"
+          className="w-full text-center text-[1.45rem] font-black tabular-nums text-[#26313d]"
           initial={{ y: 22, opacity: 0, scale: 0.84 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: -22, opacity: 0, scale: 0.84 }}
-          transition={{ type: "spring", stiffness: 620, damping: 34 }}
+          transition={{ type: "tween", duration: 0.12, ease: "easeOut" }}
         >
           {value}
         </motion.span>
@@ -866,9 +296,13 @@ function CodeToken({ token, active }: CodeTokenProps): JSX.Element {
   return (
     <motion.span
       layout
-      className={`code-token${active ? " active" : ""}`}
+      className={`inline-grid min-h-[34px] min-w-[34px] place-items-center rounded-lg border px-2 text-sm font-black ${
+        active
+          ? "border-[#2e3640] bg-[#ffd6dd] text-[#26313d] shadow-[0_5px_0_#2e3640]"
+          : "border-[#ddc7ae] bg-[#fff4df] text-[#26313d]"
+      }`}
       animate={active ? { scale: 1.05, y: -2 } : { scale: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 600, damping: 32 }}
+      transition={{ type: "tween", duration: 0.1, ease: "easeOut" }}
     >
       {token}
     </motion.span>
@@ -883,14 +317,23 @@ function TapeCell({ cell }: TapeCellProps): JSX.Element {
   return (
     <motion.div
       layout
-      className={`cell${cell.active ? " pointer" : ""}`}
+      className="grid min-h-[136px] gap-2 text-center"
       animate={cell.active ? { y: -4, scale: 1.03 } : { y: 0, scale: 1 }}
-      transition={{ type: "spring", stiffness: 520, damping: 34 }}
+      transition={{ type: "tween", duration: 0.12, ease: "easeOut" }}
     >
-      <div className="cell-face">
+      <div
+        className={`relative grid min-h-[112px] place-items-center rounded-lg border-2 px-2 ${
+          cell.active
+            ? "border-[#2e3640] bg-[#dff8ee] shadow-[0_8px_0_#2e3640]"
+            : "border-[#ddc7ae] bg-[#fffdfa]"
+        }`}
+      >
+        {cell.active ? (
+          <span className="absolute right-2 top-2 text-sm font-black text-[#c94f6a]">^</span>
+        ) : null}
         <CellValue value={cell.value} />
       </div>
-      <span className="cell-number">cell {cell.index}</span>
+      <span className="text-xs font-extrabold uppercase text-[#6b7280]">cell {cell.index}</span>
     </motion.div>
   );
 }
@@ -902,9 +345,16 @@ interface TutorialProps {
 function Tutorial({ onClose }: TutorialProps): JSX.Element {
   const [slide, setSlide] = useState(0);
   const slides = [
-    ["Paw the code", "Type Brainfuck or pick a sample. Only the eight classic symbols are executed."],
-    ["Watch the tape", "Step through each instruction and follow the highlighted cell as values change."],
-    ["Ask the WASM cat", "Use Full Run to send the same program to the Rust WebAssembly interpreter."],
+    ["Meet BrainCrawly", "This is a step-by-step Brainfuck visualizer. You can move slowly and watch the tape react."],
+    ["What is Brainfuck?", "Brainfuck is a tiny language with 8 commands that manipulate a tape of byte cells."],
+    ["The tape", "Each cell holds a value 0-255. The pointer moves left and right across the tape."],
+    ["Pointer moves", "Use > to move right and < to move left. The highlighted cell is the current pointer."],
+    ["Value changes", "+ increments the current cell, - decrements it, and values wrap around 0-255."],
+    ["Input and output", ". outputs the current cell as ASCII. , reads the next input byte into the cell."],
+    ["Loops", "[ and ] create loops. When the current cell is 0, the loop skips ahead."],
+    ["Step visualizer", "Use Step to advance one instruction. Run will keep stepping at your chosen speed."],
+    ["Editing resets", "Any edit reloads the program, resets the tape to zeros, and clears the step log."],
+    ["Hello, World!", HELLO_WORLD_PROGRAM],
   ] as const;
   const current = slides[slide];
   const isLast = slide === slides.length - 1;
@@ -920,38 +370,55 @@ function Tutorial({ onClose }: TutorialProps): JSX.Element {
 
   return (
     <motion.div
-      className="tutorial-overlay"
+      className="fixed inset-0 z-20 grid place-items-center bg-[#26313d]/40 p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <motion.div
-        className="tutorial-modal cat-card"
+        className="w-full max-w-md rounded-lg border-2 border-[#2e3640] bg-[#fffdfa] p-5 shadow-[0_18px_48px_rgba(82,57,36,0.14)]"
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
         onClick={(event: MouseEvent) => event.stopPropagation()}
       >
-        <button type="button" className="icon-close" onClick={onClose} aria-label="Close tutorial">
+        <button
+          type="button"
+          className="float-right grid h-9 w-9 place-items-center rounded-lg bg-[#fff2c7] text-sm font-black text-[#26313d]"
+          onClick={onClose}
+          aria-label="Close tutorial"
+        >
           x
         </button>
-        <p className="panel-kicker">Tiny tutorial</p>
-        <h2>{current[0]}</h2>
-        <p>{current[1]}</p>
-        <div className="tutorial-footer">
-          <div className="dots" aria-label="Tutorial progress">
+        <p className="text-xs font-extrabold uppercase text-[#4fc7a1]">Tiny tutorial</p>
+        <h2 className="mt-2 text-lg font-bold text-[#26313d]">{current[0]}</h2>
+        {current[0] === "Hello, World!" ? (
+          <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-[#ddc7ae] bg-[#26313d] p-3 text-xs leading-relaxed text-[#fffdfa]">
+            {current[1]}
+          </pre>
+        ) : (
+          <p className="mt-2 text-sm leading-relaxed text-[#6b7280]">{current[1]}</p>
+        )}
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2" aria-label="Tutorial progress">
             {slides.map((item, index) => (
               <button
                 key={item[0]}
                 type="button"
-                className={`dot${index === slide ? " active" : ""}`}
+                className={`h-2 w-7 rounded-full transition ${
+                  index === slide ? "bg-[#ff8fa3]" : "bg-[#ead9c5]"
+                }`}
                 onClick={() => setSlide(index)}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
           </div>
-          <button type="button" className="primary-button" onClick={next}>
+          <button
+            type="button"
+            className="rounded-lg bg-[#8be8c5] px-4 py-2 text-sm font-black text-[#1b302b] shadow-[0_6px_0_#2e3640]"
+            onClick={next}
+          >
             {isLast ? "Start" : "Next"}
           </button>
         </div>
@@ -967,13 +434,10 @@ export default function Page(): JSX.Element {
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [status, setStatus] = useState("Ready for a careful little step.");
   const [statusTone, setStatusTone] = useState<StatusTone>("neutral");
-  const [wasmStatus, setWasmStatus] = useState("WASM interpreter is warming up.");
-  const [wasmTone, setWasmTone] = useState<WasmTone>("idle");
-  const [wasmOutput, setWasmOutput] = useState("");
   const [history, setHistory] = useState<StepResult[]>([]);
   const [renderTick, setRenderTick] = useState(0);
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [wasmBusy, setWasmBusy] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(true);
+  const [fallbackTapeSeed, setFallbackTapeSeed] = useState(0);
   const machineRef = useRef<BrainfuckMachine | null>(
     new BrainfuckMachine(DEFAULT_PROGRAM, DEFAULT_INPUT)
   );
@@ -981,41 +445,21 @@ export default function Page(): JSX.Element {
   const tapeWidth = useElementWidth(tapeShellRef);
 
   useEffect(() => {
-    let cancelled = false;
-
-    ensureWasm()
-      .then(() => {
-        const smokeOutput = interpretWithWasm("+++++[>+++++++++++++<-]>.", "");
-
-        if (smokeOutput !== "A") {
-          throw new Error("WASM interpreter connected, but the smoke test returned an unexpected result.");
-        }
-
-        if (!cancelled) {
-          setWasmStatus("Rust WASM interpreter connected. Smoke test emitted A.");
-          setWasmTone("ready");
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setWasmStatus(error instanceof Error ? error.message : String(error));
-          setWasmTone("error");
-        }
-      });
-
-    if (window.localStorage.getItem("braincrawly_visited") !== "yes") {
-      setShowTutorial(true);
-      window.localStorage.setItem("braincrawly_visited", "yes");
-    }
-
-    return () => {
-      cancelled = true;
-    };
+    return () => undefined;
   }, []);
 
   const visibleCells = clamp(Math.floor((tapeWidth || 780) / 82), 7, 17);
   const machine = machineRef.current;
   const tapeWindow = machine?.getTapeWindow(visibleCells) ?? null;
+  const fallbackTape = useMemo(() => {
+    const cells = Array.from({ length: visibleCells }, (_, index) => ({
+      index,
+      value: 0,
+      active: index === 0,
+    }));
+
+    return { cells } as TapeWindow;
+  }, [visibleCells, fallbackTapeSeed]);
   const codeTokens = Array.from(program).filter((token) => BF_TOKENS.includes(token));
   const highlightedInstruction = machine?.lastExecutedPc ?? machine?.pc ?? null;
   const outputText = machine?.output ?? "";
@@ -1039,11 +483,11 @@ export default function Page(): JSX.Element {
       machineRef.current = null;
       setStatus(error instanceof Error ? error.message : String(error));
       setStatusTone("error");
+      setFallbackTapeSeed((value) => value + 1);
     }
 
     setHistory([]);
     setRunning(false);
-    setWasmOutput("");
     rerender();
   }
 
@@ -1135,59 +579,40 @@ export default function Page(): JSX.Element {
     setStatusTone("neutral");
   }
 
-  async function handleWasmRun(): Promise<void> {
-    setWasmBusy(true);
-    setWasmStatus("Rust WASM is running the full program.");
-    setWasmTone("idle");
-
-    try {
-      const result = await runWasm(program, input);
-      setWasmOutput(result);
-      setWasmStatus("Full run completed in the Rust WASM interpreter.");
-      setWasmTone("ready");
-    } catch (error) {
-      setWasmOutput("");
-      setWasmStatus(error instanceof Error ? error.message : String(error));
-      setWasmTone("error");
-    } finally {
-      setWasmBusy(false);
-    }
-  }
+  const statusToneClass =
+    statusTone === "positive"
+      ? "text-[#227958]"
+      : statusTone === "error"
+        ? "text-[#b23b55]"
+        : "text-[#6b7280]";
 
   return (
-    <main className="page">
-      <style>{PAGE_STYLES}</style>
+    <main className="min-h-screen px-4 pb-9 pt-7 md:px-6">
       <AnimatePresence>{showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}</AnimatePresence>
 
-      <section className="hero">
-        <div className="cat-mark" aria-hidden="true">
-          <span />
-        </div>
-        <p className="eyebrow">Brainfuck step visualizer</p>
-        <h1>BrainCrawly</h1>
-        <p>
-          A cozy single-page workbench for poking at Brainfuck, watching the tape,
-          and asking the Rust WASM interpreter for the final answer.
-        </p>
+      <section className="mx-auto mb-4 w-full max-w-5xl">
+        <h1 className="text-[clamp(2.8rem,6.2vw,5.6rem)] font-black leading-[0.96] tracking-tight text-[#26313d]">
+          BrainCrwaly
+        </h1>
       </section>
 
-      <section className="workspace">
-        <aside className="panel controls-panel cat-card">
-          <div className="panel-header">
-            <p className="panel-kicker">Controls</p>
-            <h2>Code nest</h2>
+      <section className="mx-auto grid w-full max-w-5xl gap-4 lg:grid-cols-[minmax(320px,390px)_minmax(0,1fr)]">
+        <aside className="rounded-lg border-2 border-[#2e3640] bg-[#fffdfa]/90 shadow-[0_18px_48px_rgba(82,57,36,0.14)]">
+          <div className="px-4 pb-0 pt-5">
+            <p className="text-xs font-extrabold uppercase text-[#4fc7a1]">Controls</p>
+            <h2 className="mt-1 text-xl font-bold text-[#26313d]">Code nest</h2>
           </div>
 
-          <div className="panel-body stack">
-            <section className="section">
-              <div className="section-title-row">
-                <h3>Program</h3>
-                <div className="sample-row">
+          <div className="grid gap-3 p-4">
+            <section className="grid gap-3 rounded-lg border border-[#ead9c5] bg-white/70 p-3.5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h3 className="text-lg font-semibold text-[#26313d]">Program</h3>
+                <div className="flex flex-wrap justify-end gap-2">
                   {SAMPLE_PROGRAMS.map((sample) => (
                     <button
                       key={sample.id}
                       type="button"
-                      className="preset-pill"
+                      className="rounded-lg border border-[#f0c2cd] bg-[#fff0f4] px-3 py-1 text-xs font-black text-[#873a4d] transition hover:-translate-y-0.5"
                       onClick={() => loadSample(sample)}
                     >
                       {sample.label}
@@ -1195,10 +620,10 @@ export default function Page(): JSX.Element {
                   ))}
                 </div>
               </div>
-              <label className="field">
-                <span>Source code</span>
+              <label className="grid gap-2">
+                <span className="text-xs font-extrabold uppercase text-[#6b7280]">Source code</span>
                 <textarea
-                  className="textarea code-input"
+                  className="min-h-[190px] w-full rounded-lg border border-[#ddc7ae] bg-[#fffdfa] p-3 font-mono text-sm leading-relaxed text-[#26313d] outline-none focus:border-[#4fc7a1] focus:ring-4 focus:ring-[#4fc7a1]/20"
                   value={program}
                   onChange={handleProgramChange}
                   spellCheck="false"
@@ -1207,12 +632,14 @@ export default function Page(): JSX.Element {
               </label>
             </section>
 
-            <section className="section">
-              <h3>Input</h3>
-              <label className="field">
-                <span>Bytes consumed by comma instructions</span>
+            <section className="grid gap-2 rounded-lg border border-[#ead9c5] bg-white/70 p-3.5">
+              <h3 className="text-lg font-semibold text-[#26313d]">Input</h3>
+              <label className="grid gap-2">
+                <span className="text-xs font-extrabold uppercase text-[#6b7280]">
+                  Bytes consumed by comma instructions
+                </span>
                 <textarea
-                  className="textarea"
+                  className="min-h-[96px] w-full rounded-lg border border-[#ddc7ae] bg-[#fffdfa] p-3 font-mono text-sm leading-relaxed text-[#26313d] outline-none focus:border-[#4fc7a1] focus:ring-4 focus:ring-[#4fc7a1]/20"
                   value={input}
                   onChange={handleInputChange}
                   spellCheck="false"
@@ -1222,71 +649,82 @@ export default function Page(): JSX.Element {
               </label>
             </section>
 
-            <section className="section playback-section">
-              <div className="section-title-row">
-                <h3>Playback</h3>
-                <span className="helper-text">{speed} ms per step</span>
+            <section className="grid gap-3 rounded-lg border border-[#ead9c5] bg-white/70 p-3.5">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="text-lg font-semibold text-[#26313d]">Playback</h3>
+                <span className="text-xs font-semibold uppercase text-[#6b7280]">{speed} ms per step</span>
               </div>
               <input
                 type="range"
-                min="40"
-                max="650"
+                min="10"
+                max="300"
                 step="10"
                 value={speed}
                 onChange={(event) => setSpeed(Number(event.target.value))}
                 aria-label="Step speed"
+                className="w-full accent-[#ff8fa3]"
               />
-              <div className="control-row">
-                <button type="button" className="primary-button" onClick={handleStep}>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  className="rounded-lg bg-[#8be8c5] px-3 py-2 text-sm font-black text-[#1b302b] shadow-[0_6px_0_#2e3640] transition hover:-translate-y-0.5"
+                  onClick={handleStep}
+                >
                   Step
                 </button>
-                <button type="button" className="secondary-button" onClick={handleRunToggle}>
+                <button
+                  type="button"
+                  className="rounded-lg border-2 border-[#2e3640] bg-[#eaf2ff] px-3 py-2 text-sm font-black text-[#26313d] transition hover:-translate-y-0.5"
+                  onClick={handleRunToggle}
+                >
                   {running ? "Pause" : "Run"}
                 </button>
-                <button type="button" className="ghost-button" onClick={handleReset}>
+                <button
+                  type="button"
+                  className="rounded-lg border-2 border-[#f0c367] bg-[#fff2c7] px-3 py-2 text-sm font-black text-[#70470f] transition hover:-translate-y-0.5"
+                  onClick={handleReset}
+                >
                   Reset
                 </button>
               </div>
-              <p className={`status ${statusTone}`}>{status}</p>
+              <p className={`min-h-[1.4rem] text-sm ${statusToneClass}`}>{status}</p>
             </section>
 
-            <section className="stats-grid">
+            <section className="grid gap-2 sm:grid-cols-2">
               {stats.map(([label, value]) => (
-                <motion.div key={label} className="stat-card" layout>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
+                <motion.div
+                  key={label}
+                  className="rounded-lg border border-[#d9c7b5] bg-[#fdf7ef] p-3"
+                  layout
+                >
+                  <span className="text-xs font-extrabold uppercase text-[#6b7280]">{label}</span>
+                  <strong className="mt-1 block text-lg font-semibold tabular-nums text-[#26313d]">
+                    {value}
+                  </strong>
                 </motion.div>
               ))}
             </section>
           </div>
         </aside>
 
-        <section className="panel visual-panel cat-card">
-          <div className="panel-header visual-header">
+        <section className="rounded-lg border-2 border-[#2e3640] bg-[#fffdfa]/90 shadow-[0_18px_48px_rgba(82,57,36,0.14)]">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-0 pt-5">
             <div>
-              <p className="panel-kicker">Visualization</p>
-              <h2>Live execution</h2>
+              <p className="text-xs font-extrabold uppercase text-[#4fc7a1]">Visualization</p>
+              <h2 className="mt-1 text-xl font-bold text-[#26313d]">Live execution</h2>
             </div>
-            <button
-              type="button"
-              className="secondary-button wasm-button"
-              onClick={handleWasmRun}
-              disabled={wasmBusy}
-            >
-              {wasmBusy ? "Running..." : "Full Run"}
-            </button>
           </div>
 
-          <div className="panel-body visual-body">
+          <div className="grid gap-3 p-4">
             <LayoutGroup>
-              <section className="section code-section">
-                <div className="section-title-row">
-                  <h3>Code trace</h3>
-                  <span className="helper-text">
+              <section className="grid gap-3 rounded-lg border border-[#ead9c5] bg-white/70 p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-[#26313d]">Code trace</h3>
+                  <span className="text-xs font-semibold uppercase text-[#6b7280]">
                     {machine ? `instruction ${highlightedInstruction ?? 0}` : "waiting for valid code"}
                   </span>
                 </div>
-                <div className="code-strip" aria-label="Brainfuck code trace">
+                <div className="flex min-h-[88px] flex-wrap gap-2 rounded-lg border border-[#ead9c5] bg-[#fffdfa] p-3">
                   {codeTokens.length > 0 ? (
                     codeTokens.map((token, index) => (
                       <CodeToken
@@ -1296,73 +734,67 @@ export default function Page(): JSX.Element {
                       />
                     ))
                   ) : (
-                    <span className="empty-inline">No executable instructions yet.</span>
+                    <span className="text-sm text-[#6b7280]">No executable instructions yet.</span>
                   )}
                 </div>
               </section>
 
-              <section ref={tapeShellRef} className="section tape-section">
-                <div className="section-title-row">
-                  <h3>Tape</h3>
-                  <span className="helper-text">centered on the pointer</span>
+              <section ref={tapeShellRef} className="grid gap-3 rounded-lg border border-[#ead9c5] bg-white/70 p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-[#26313d]">Tape</h3>
+                  <span className="text-xs font-semibold uppercase text-[#6b7280]">centered on the pointer</span>
                 </div>
-                <div className="tape-shell">
-                  {machine && tapeWindow ? (
-                    <div
-                      className="tape-row"
-                      style={{ "--visible-cells": visibleCells } as React.CSSProperties}
-                    >
-                      {tapeWindow.cells.map((cell) => (
-                        <TapeCell key={cell.index} cell={cell} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="empty-state">Fix the program to wake the tape.</div>
-                  )}
+                <div className="min-h-[190px] overflow-hidden rounded-lg border border-[#ead9c5] bg-[#f4fff8] p-3">
+                  <div
+                    className="grid gap-2"
+                    style={{ gridTemplateColumns: `repeat(${visibleCells}, minmax(60px, 1fr))` }}
+                  >
+                    {(machine && tapeWindow ? tapeWindow : fallbackTape).cells.map((cell) => (
+                      <TapeCell key={cell.index} cell={cell} />
+                    ))}
+                  </div>
                 </div>
               </section>
             </LayoutGroup>
 
-            <section className="bottom-grid">
-              <section className="section">
-                <div className="section-title-row">
-                  <h3>Step log</h3>
-                  <span className="helper-text">latest first</span>
+            <section className="grid gap-3 lg:grid-cols-2">
+              <section className="grid gap-3 rounded-lg border border-[#ead9c5] bg-white/70 p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-[#26313d]">Step log</h3>
+                  <span className="text-xs font-semibold uppercase text-[#6b7280]">latest first</span>
                 </div>
-                <div className="history-list">
+                <div className="grid max-h-[242px] gap-2 overflow-auto pr-1">
                   {history.length > 0 ? (
                     history.map((entry) => (
                       <motion.article
                         key={`${entry.steps}-${entry.executedPc}-${entry.op}`}
-                        className="history-item"
+                        className="grid gap-1 rounded-lg border border-[#ead9c5] bg-[#fffdfa] p-3"
                         initial={{ opacity: 0, x: 18 }}
                         animate={{ opacity: 1, x: 0 }}
                       >
-                        <strong>
+                        <strong className="text-sm font-semibold text-[#26313d]">
                           Step {entry.steps} · {entry.op ?? "done"} at pc {(entry.executedPc ?? -1) + 1}
                         </strong>
-                        <span>{entry.note}</span>
+                        <span className="text-xs leading-relaxed text-[#6b7280]">{entry.note}</span>
                       </motion.article>
                     ))
                   ) : (
-                    <div className="empty-state compact-empty">No steps yet.</div>
+                    <div className="grid min-h-[96px] place-items-center rounded-lg border border-dashed border-[#d6bfa7] bg-white/70 text-sm text-[#6b7280]">
+                      No steps yet.
+                    </div>
                   )}
                 </div>
               </section>
 
-              <section className="section">
-                <div className="section-title-row">
-                  <h3>Output</h3>
-                  <span className="helper-text">stepped vs WASM</span>
+              <section className="grid gap-3 rounded-lg border border-[#ead9c5] bg-white/70 p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-[#26313d]">Output</h3>
+                  <span className="text-xs font-semibold uppercase text-[#6b7280]">stepped output</span>
                 </div>
-                <div className="output-stack">
-                  <pre className="output-box" aria-live="polite">
+                <div className="grid gap-3">
+                  <pre className="min-h-[90px] rounded-lg border border-[#ddc7ae] bg-[#26313d] p-3 text-sm leading-relaxed text-[#fffdfa]">
                     {outputText.length > 0 ? outputText : "Step output appears here."}
                   </pre>
-                  <div className={`wasm-result ${wasmTone}`}>
-                    <span>{wasmStatus}</span>
-                    <pre>{wasmOutput.length > 0 ? wasmOutput : "Full Run output appears here."}</pre>
-                  </div>
                 </div>
               </section>
             </section>

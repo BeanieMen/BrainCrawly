@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: #26313d;
+  background:
+    linear-gradient(90deg, rgba(38, 49, 61, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(38, 49, 61, 0.04) 1px, transparent 1px),
+    linear-gradient(135deg, #fff7eb 0%, #f4fff8 42%, #f7f2ff 100%);
+  background-size: 28px 28px, 28px 28px, auto;
+  font-family: var(--font-montserrat), "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+textarea {
+  resize: vertical;
+}
