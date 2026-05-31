@@ -16,9 +16,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function formatCount(count: number): string {
-  return count.toString().padStart(2, "0");
-}
 
 function useElementWidth(ref: React.RefObject<HTMLElement>): number {
   const [width, setWidth] = useState(0);
@@ -377,7 +374,7 @@ function Tutorial({ onClose }: TutorialProps): JSX.Element {
       onClick={onClose}
     >
       <motion.div
-        className="w-full max-w-md rounded-lg border-2 border-[#2e3640] bg-[#fffdfa] p-5 shadow-[0_18px_48px_rgba(82,57,36,0.14)]"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border-2 border-[#2e3640] bg-[#fffdfa] p-5 shadow-[0_18px_48px_rgba(82,57,36,0.14)]"
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -400,8 +397,8 @@ function Tutorial({ onClose }: TutorialProps): JSX.Element {
         ) : (
           <p className="mt-2 text-sm leading-relaxed text-[#6b7280]">{current[1]}</p>
         )}
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2" aria-label="Tutorial progress">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-1 flex-wrap items-center gap-2" aria-label="Tutorial progress">
             {slides.map((item, index) => (
               <button
                 key={item[0]}
@@ -416,7 +413,7 @@ function Tutorial({ onClose }: TutorialProps): JSX.Element {
           </div>
           <button
             type="button"
-            className="rounded-lg bg-[#8be8c5] px-4 py-2 text-sm font-black text-[#1b302b] shadow-[0_6px_0_#2e3640]"
+            className="shrink-0 rounded-lg bg-[#8be8c5] px-4 py-2 text-sm font-black text-[#1b302b] shadow-[0_6px_0_#2e3640]"
             onClick={next}
           >
             {isLast ? "Start" : "Next"}
@@ -463,12 +460,6 @@ export default function Page(): JSX.Element {
   const codeTokens = Array.from(program).filter((token) => BF_TOKENS.includes(token));
   const highlightedInstruction = machine?.lastExecutedPc ?? machine?.pc ?? null;
   const outputText = machine?.output ?? "";
-  const stats = [
-    ["Steps", machine ? formatCount(machine.steps) : "--"],
-    ["Pointer", machine ? formatCount(machine.pointer) : "--"],
-    ["PC", machine ? formatCount(machine.pc) : "--"],
-    ["Cells", formatCount(visibleCells)],
-  ] as const;
 
   function rerender(): void {
     setRenderTick((value) => value + 1);
@@ -690,20 +681,6 @@ export default function Page(): JSX.Element {
               <p className={`min-h-[1.4rem] text-sm ${statusToneClass}`}>{status}</p>
             </section>
 
-            <section className="grid gap-2 sm:grid-cols-2">
-              {stats.map(([label, value]) => (
-                <motion.div
-                  key={label}
-                  className="rounded-lg border border-[#d9c7b5] bg-[#fdf7ef] p-3"
-                  layout
-                >
-                  <span className="text-xs font-extrabold uppercase text-[#6b7280]">{label}</span>
-                  <strong className="mt-1 block text-lg font-semibold tabular-nums text-[#26313d]">
-                    {value}
-                  </strong>
-                </motion.div>
-              ))}
-            </section>
           </div>
         </aside>
 

@@ -1,17 +1,27 @@
 # BrainCrawly
 
-BrainCrawly is a Brainfuck step visualizer built with Next.js, Framer Motion, and Montserrat.
-The UI lives in `web/` and renders a step-by-step execution trace with a responsive tape view.
-The Rust interpreter is compiled to a wasm binary and copied into `web/pkg/` as part of the build.
+BrainCrawly is a Brainfuck step visualizer built with Next.js.
+
+## What is WASM?
+
+WASM is a compact binary format that lets code written in languages like Rust run in the browser.
+In this project, the Brainfuck interpreter is written in Rust and compiled to WASM so the web UI can call it.
+Learn more at the official WebAssembly site: [webassembly.org](https://webassembly.org/).
+
+## What is Brainfuck?
+
+Brainfuck is a tiny weird programming language with only 8 commands that manipulate a tape of byte cells.
+This visualizer lets you step through those commands and watch the tape change in real time.
+If you wanna learn more about brainfuck, see [the Brainfuck page](https://esolangs.org/wiki/Brainfuck).
 
 ## Prerequisites
 
 - Node.js and npm.
 - Bun, used to serve the static export with `bunx serve@latest out`.
 - Rust with `cargo` and `rustup`.
-- The `wasm32-unknown-unknown` Rust target.
+- The `wasm32` Rust target (see [Rust target support](https://doc.rust-lang.org/rustc/platform-support.html)).
 
-install commands on Linux:
+Install pre-requisites on Linux:
 
 ```sh
 curl -fsSL https://bun.sh/install | bash
@@ -19,23 +29,16 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 rustup target add wasm32-unknown-unknown
 ```
 
-## Layout
-
-- `rust/` contains the Rust source for the wasm interpreter.
-- `web/app/page.jsx` contains the main visualizer UI.
-- `web/lib/brainfuck.js` contains the stepper and tape model.
-- `Makefile` wraps the common dev and build commands.
-
-## Commands
-
-- `make install` installs the web dependencies with `npm ci`.
-- `make wasm` compiles the Rust interpreter to `web/pkg/crawly_wasm_bg.wasm`.
-- `make dev` starts the Next.js dev server in `web/`.
-- `make build` compiles the wasm binary and creates the static export in `web/out/`.
-- `make start` builds and serves the static export from `web/out/` with Bun.
-- `make clean` removes generated Next.js output from `web/`.
 
 ## Run
+
+If you already have Rust and Bun installed, make sure the WASM build target is available:
+
+```sh
+rustup target add wasm32-unknown-unknown
+```
+
+Then use the Makefile helpers to build and serve the app:
 
 ```sh
 make install && make start
@@ -43,4 +46,4 @@ make install && make start
 
 ## Disclaimer
 
-Ai was used to create the frontend ONLY
+AI was used to create the frontend only.
